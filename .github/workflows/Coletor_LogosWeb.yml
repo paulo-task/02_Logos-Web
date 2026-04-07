@@ -1,0 +1,22 @@
+name: Executar Scripts Python
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-scripts:
+    runs-on: windows-latest  # ou ubuntu-latest, se for Linux
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Executar NS_LoWeb_PAULISTA.py
+        run: python NS_LoWeb_PAULISTA.py
+
+      - name: Executar NS_LoWeb_PIRATININGA.py
+        run: python NS_LoWeb_PIRATININGA.py
