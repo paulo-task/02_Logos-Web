@@ -9,7 +9,7 @@ echo.
 
 :: 1. Executando o Script de Paulista
 echo [1/2] Rodando Script PAULISTA...
-python "C:\Users\paulo.janio\ENGELMIG ENERGIA LTDA\LEC ENGELMIG - Workspace\Python\Logos Web\NS_LoWeb_PAULISTA.py"
+python "C:\Users\paulo.janio\ENGELMIG ENERGIA LTDA\LEC ENGELMIG - Workspace\03 Repository\02_Logos-Web\NS_LoWeb_PAULISTA.py"
 if %errorlevel% neq 0 (
     echo.
     echo [AVISO] O script de Paulista encontrou um erro ou atingiu o limite de tentativas.
@@ -23,7 +23,7 @@ echo.
 
 :: 2. Executando o Script de Piratininga
 echo [2/2] Rodando Script PIRATININGA...
-python "C:\Users\paulo.janio\ENGELMIG ENERGIA LTDA\LEC ENGELMIG - Workspace\Python\Logos Web\NS_LoWeb_PIRATININGA.py"
+python "C:\Users\paulo.janio\ENGELMIG ENERGIA LTDA\LEC ENGELMIG - Workspace\03 Repository\02_Logos-Web\NS_LoWeb_PIRATININGA.py"
 if %errorlevel% neq 0 (
     echo.
     echo [AVISO] O script de Piratininga encontrou um erro ou atingiu o limite de tentativas.

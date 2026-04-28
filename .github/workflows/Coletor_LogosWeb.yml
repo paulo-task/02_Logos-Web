@@ -1,22 +1,43 @@
-name: Executar Scripts Python
+name: 🗒️ Executor NS - Engelmig
 
 on:
   workflow_dispatch:
 
 jobs:
   run-scripts:
-    runs-on: windows-latest  # ou ubuntu-latest, se for Linux
+    runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout do código
+      - name: 📥 Checkout do código
         uses: actions/checkout@v4
 
-      - name: Configurar Python
+      - name: 🐍 Configurar Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: '3.10'
 
-      - name: Executar NS_LoWeb_PAULISTA.py
+      - name: 📦 Instalar dependências
+        run: |
+          pip install playwright python-dotenv
+          playwright install chromium --with-deps
+
+      - name: 🚀 [1/2] Executar NS_LoWeb_PAULISTA
+        id: paulista
+        continue-on-error: true
         run: python NS_LoWeb_PAULISTA.py
 
-      - name: Executar NS_LoWeb_PIRATININGA.py
+      - name: ⚠️ Aviso Paulista (se falhou)
+        if: steps.paulista.outcome == 'failure'
+        run: echo "⚠️ [AVISO] O script de Paulista encontrou um erro ou atingiu o limite de tentativas."
+
+      - name: 🚀 [2/2] Executar NS_LoWeb_PIRATININGA
+        id: piratininga
+        continue-on-error: true
         run: python NS_LoWeb_PIRATININGA.py
+
+      - name: ⚠️ Aviso Piratininga (se falhou)
+        if: steps.piratininga.outcome == 'failure'
+        run: echo "⚠️ [AVISO] O script de Piratininga encontrou um erro ou atingiu o limite de tentativas."
+
+      - name: ✅ Finalizado
+        run: echo "✅ TODOS OS PROCESSOS FORAM CONCLUÍDOS!"
