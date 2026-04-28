@@ -3,59 +3,98 @@ import os
 import time
 import pandas as pd
 from datetime import datetime
-import warnings 
+import warnings
 from playwright.sync_api import Playwright, sync_playwright, expect
+from pathlib import Path
 
 # Silencia avisos de forma universal
 warnings.filterwarnings("ignore", message=".*SettingWithCopyWarning.*")
 
+def get_download_path():
+    """Define o caminho de download baseado no ambiente"""
+    if os.getenv('GITHUB_ACTIONS') == 'true':
+        # Ambiente GitHub Actions
+        download_path = os.path.join(os.getcwd(), 'downloads')
+        os.makedirs(download_path, exist_ok=True)
+        return download_path
+    else:
+        # Ambiente Local
+        return r"C:\Users\paulo.janio\ENGELMIG ENERGIA LTDA\LEC ENGELMIG - Workspace\BI_LEC\16_Notas_Servico"
+
 def run(playwright: Playwright) -> None:
+    # --- DETECÇÃO DE AMBIENTE ---
+    is_github_actions = os.getenv('GITHUB_ACTIONS') == 'true'
+    
     # --- CONFIGURAÇÕES DE RETENTATIVA ---
-    max_tentativas = 30      # Quantidade de vezes que vai tentar logar
-    intervalo_segundos = 3 # Tempo de espera recomendado (60s ajuda o servidor a liberar a sessão)
+    max_tentativas = 30 if not is_github_actions else 10
+    intervalo_segundos = 3 if not is_github_actions else 5
     tentativa_atual = 0
     logado = False
-    # ------------------------------------
-
-    browser = playwright.chromium.launch(headless=False, slow_mo=300)
-    context = browser.new_context()
+    
+    # --- CONFIGURAÇÕES DO BROWSER ---
+    browser_options = {
+        "headless": is_github_actions,  # Headless no CI, visível no local
+        "slow_mo": 100 if is_github_actions else 300  # Mais lento no CI
+    }
+    
+    # Se estiver no GitHub Actions, adiciona argumentos para estabilidade
+    if is_github_actions:
+        browser_options["args"] = [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--disable-gpu'
+        ]
+    
+    browser = playwright.chromium.launch(**browser_options)
+    context = browser.new_context(
+        viewport={'width': 1280, 'height': 720},
+        user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    )
     page = context.new_page()
     
-    print("--- Iniciando Script Piratininga ---")
+    print(f"--- Iniciando Script Paulista - Ambiente: {'GitHub Actions' if is_github_actions else 'Local'} ---")
 
     while tentativa_atual < max_tentativas and not logado:
         tentativa_atual += 1
         print(f"\nTentativa de login {tentativa_atual} de {max_tentativas}...")
         
         try:
-            page.goto("https://contratadas.cpfl.com.br/account/login.aspx")
+            page.goto("https://contratadas.cpfl.com.br/account/login.aspx", timeout=30000)
             
             # Preenchimento de Credenciais
-            page.locator("#MainContent_txtLogin").fill("80009972")
-            page.locator("#MainContent_txtSenha").fill("@Edn110674+")
+            # Usando variáveis de ambiente para segurança
+            login = os.getenv('CPFL_USUARIO_PAULISTA', '80009972')
+            senha = os.getenv('CPFL_SENHA_PAULISTA', '@Edn110674+')
+            
+            page.locator("#MainContent_txtLogin").fill(login)
+            page.locator("#MainContent_txtSenha").fill(senha)
             page.get_by_role("button", name="Logar").click()
             
             # Aguarda um momento para o servidor processar o redirecionamento
-            time.sleep(5)
+            time.sleep(5 if not is_github_actions else 8)
             
-            # VALIDAÇÃO 1: Se a URL ainda contém 'login.aspx', o login falhou ou a sessão está presa
+            # VALIDAÇÃO 1: Se a URL ainda contém 'login.aspx', o login falhou
             if "login.aspx" in page.url.lower():
                 raise Exception("Acesso negado ou Sessão já ocupada por outro usuário")
 
-            # VALIDAÇÃO 2: Tenta localizar o link usando Regex (ignora ícones e espaços extras)
-            link_semaforo = page.get_by_role("link", name=re.compile(r"Consulta Semáforo de Notas"))
+            # VALIDAÇÃO 2: Tenta localizar o link usando Regex
+            try:
+                link_semaforo = page.get_by_role("link", name=re.compile(r"Consulta Semáforo de Notas"))
+                if not link_semaforo.is_visible(timeout=5000):
+                    link_semaforo = page.locator("a:has-text('Semáforo')")
+                
+                link_semaforo.wait_for(state="visible", timeout=15000)
+                link_semaforo.click()
+            except Exception as e:
+                print(f"⚠️ Link não encontrado: {e}")
+                raise Exception("Não foi possível acessar a página de consulta")
             
-            # Se não estiver visível pelo nome, tenta pelo seletor de texto parcial
-            if not link_semaforo.is_visible():
-                link_semaforo = page.locator("a:has-text('Semáforo')")
-
-            link_semaforo.wait_for(state="visible", timeout=15000)
-            link_semaforo.click()
-            
-            # VALIDAÇÃO 3: Teste de Estabilidade (espera ver se o sistema desloga após o clique)
+            # VALIDAÇÃO 3: Teste de Estabilidade
             time.sleep(3)
             if "login.aspx" in page.url.lower():
-                raise Exception("O sistema deslogou automaticamente logo após o acesso")
+                raise Exception("O sistema deslogou automaticamente")
 
             # Confirmação de entrada na tela de consulta
             page.locator("#MainContent_btnConsultarJS").wait_for(state="visible", timeout=15000)
@@ -73,16 +112,28 @@ def run(playwright: Playwright) -> None:
                 browser.close()
                 return
 
-    # --- INÍCIO DO PROCESSO DE EXPORTAÇÃO (SÓ EXECUTA SE LOGADO) ---
+    # --- INÍCIO DO PROCESSO DE EXPORTAÇÃO ---
     print("Iniciando filtragem e exportação...")
-    page.locator("#MainContent_btnConsultarJS").click()
     
+    # Aguarda estabilização da página
+    time.sleep(2)
+    
+    try:
+        page.locator("#MainContent_btnConsultarJS").click()
+        time.sleep(2)
+    except Exception as e:
+        print(f"Erro ao clicar em consultar: {e}")
+    
+    # Seleciona contratos
     contratos = ["CTLEC037", "CTLEC038", "CTLEC039", "CTLEC040"]
     for c in contratos:
         try: 
-            page.get_by_role("checkbox", name=re.compile(c)).check(timeout=3000)
-        except: 
-            pass
+            checkbox = page.get_by_role("checkbox", name=re.compile(c))
+            if checkbox.is_visible(timeout=3000):
+                checkbox.check()
+                print(f"✓ Contrato selecionado: {c}")
+        except Exception as e:
+            print(f"⚠️ Contrato {c} não encontrado: {e}")
     
     print("Selecionando Cidades...")
     cidades = ["AGUDOS", "AREALVA", "AVAI", "BAURU", "BORACEIA", "BOREBI", "CABRALIA PAULISTA", "DUARTINA", "IACANGA", "LUCIANOPOLIS", 
@@ -91,54 +142,79 @@ def run(playwright: Playwright) -> None:
                "ITAPUI", "JAHU", "MINEIROS DO TIETE", "ALVARO DE CARVALHO", "ALVINLANDIA", "CAMPOS NOVOS PAULISTA", "FERNAO", "GALIA", "GARCA", "HERCULANDIA", 
                "LUPERCIO", "MARILIA", "OCAUCU", "ORIENTE", "POMPEIA", "QUEIROZ", "QUINTANA", "VERA CRUZ"]
 
+    cidades_selecionadas = 0
     for cidade in cidades:
         try: 
-            page.get_by_role("checkbox", name=cidade, exact=True).check(timeout=1000)
-        except: 
+            checkbox = page.get_by_role("checkbox", name=cidade, exact=True)
+            if checkbox.is_visible(timeout=1000):
+                checkbox.check()
+                cidades_selecionadas += 1
+        except Exception as e:
             continue
-
-    page.get_by_role("row", name="TODOS", exact=True).get_by_label("TODOS").check()
     
+    print(f"✓ {cidades_selecionadas} cidades selecionadas")
+
+    # Seleciona TODOS
     try:
-        with page.expect_download(timeout=0) as download_info:
+        page.get_by_role("row", name="TODOS", exact=True).get_by_label("TODOS").check()
+        print("✓ Opção TODOS selecionada")
+    except Exception as e:
+        print(f"⚠️ Erro ao selecionar TODOS: {e}")
+    
+    # Realiza o download
+    try:
+        with page.expect_download(timeout=60000) as download_info:
             page.locator("#MainContent_btnExportExcel").click()
         
         download = download_info.value
-        pasta_destino = r"C:\Users\paulo.janio\ENGELMIG ENERGIA LTDA\LEC ENGELMIG - Workspace\BI_LEC\16_Notas_Servico"
+        
+        # Define caminhos baseado no ambiente
+        pasta_destino = get_download_path()
         caminho_final = os.path.join(pasta_destino, "Nota_Servico_Paulista.xlsx")
         caminho_temp = os.path.join(pasta_destino, "temp_processamento.xls")
 
-        if os.path.exists(caminho_final):
-            try:
-                os.rename(caminho_final, caminho_final)
-            except OSError:
-                print(f"❌ ERRO: O arquivo '{caminho_final}' está aberto. Feche-o!")
-                return 
-
+        # Salva o download
         download.save_as(caminho_temp)
+        print(f"✓ Download salvo em: {caminho_temp}")
         
         # Tratamento de Dados
+        print("Processando dados...")
         tabelas = pd.read_html(caminho_temp, flavor='lxml')
         df = tabelas[0].copy()
 
+        # Ajusta cabeçalho se necessário
         if "0" in str(df.columns[0]) or df.columns[0] == 0:
             df.columns = df.iloc[0]
             df = df[1:].copy()
 
+        # Processa coluna QTDHORAS
         if 'QTDHORAS' in df.columns:
             df['QTDHORAS'] = df['QTDHORAS'].astype(str).str.replace(',', '.')
             df['QTDHORAS'] = pd.to_numeric(df['QTDHORAS'], errors='coerce')
             if df['QTDHORAS'].abs().max() > 1000:
                 df['QTDHORAS'] = df['QTDHORAS'] / 100
 
+        # Adiciona data do relatório
         df['DT_RELATORIO'] = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        
+        # Salva arquivo final
         df.to_excel(caminho_final, index=False)
         
-        if os.path.exists(caminho_temp): os.remove(caminho_temp)
-        print(f"--- SUCESSO FINAL: Arquivo Piratininga Gerado! ---")
+        # Remove arquivo temporário
+        if os.path.exists(caminho_temp):
+            os.remove(caminho_temp)
+        
+        print(f"--- SUCESSO FINAL: Arquivo gerado em: {caminho_final} ---")
+        
+        # Se estiver no GitHub Actions, mostra informações do arquivo
+        if is_github_actions:
+            print(f"Arquivo criado: {caminho_final}")
+            print(f"Tamanho: {os.path.getsize(caminho_final)} bytes")
+            print(f"Linhas processadas: {len(df)}")
         
     except Exception as e:
-        print(f"ERRO NA EXPORTAÇÃO: {e}")
+        print(f"❌ ERRO NA EXPORTAÇÃO: {e}")
+        raise
 
     time.sleep(2)
     context.close()
