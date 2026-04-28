@@ -6,6 +6,9 @@ on:
 jobs:
   run-scripts:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      PYTHONUNBUFFERED: "1"
 
     steps:
       - name: 📥 Checkout do código
@@ -31,7 +34,7 @@ jobs:
       - name: 🚀 [1/2] Executar NS_LoWeb_PAULISTA
         id: paulista
         continue-on-error: true
-        run: xvfb-run -a python NS_LoWeb_PAULISTA.py
+        run: timeout 3m xvfb-run -a python -u NS_LoWeb_PAULISTA.py
 
       - name: ⚠️ Aviso Paulista (se falhou)
         if: steps.paulista.outcome == 'failure'
@@ -40,7 +43,7 @@ jobs:
       - name: 🚀 [2/2] Executar NS_LoWeb_PIRATININGA
         id: piratininga
         continue-on-error: true
-        run: xvfb-run -a python NS_LoWeb_PIRATININGA.py
+        run: timeout 3m xvfb-run -a python -u NS_LoWeb_PIRATININGA.py
 
       - name: ⚠️ Aviso Piratininga (se falhou)
         if: steps.piratininga.outcome == 'failure'
