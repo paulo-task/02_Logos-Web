@@ -18,7 +18,8 @@ jobs:
 
       - name: 📦 Instalar dependências
         run: |
-          pip install playwright python-dotenv
+          python -m pip install --upgrade pip
+          pip install playwright python-dotenv pandas lxml openpyxl
           playwright install chromium --with-deps
 
       - name: 🚀 [1/2] Executar NS_LoWeb_PAULISTA
