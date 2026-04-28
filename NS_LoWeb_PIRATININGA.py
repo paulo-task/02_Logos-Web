@@ -199,9 +199,13 @@ def run(playwright: Playwright) -> None:
 
     page.get_by_role("row", name="TODOS", exact=True).get_by_label("TODOS").check()
     
+    page.on("dialog", lambda dialog: (print(f"⚠️ [AVISO] Popup detectado: {dialog.message} (Clicando em OK...)"), dialog.accept()))
+    
     try:
+        print("Aguardando início do download...")
         with page.expect_download(timeout=0) as download_info:
-            page.locator("#MainContent_btnExportExcel").click()
+            page.locator("#MainContent_btnExportExcel").click(force=True)
+            print("✓ Clique no botão de exportar realizado, aguardando servidor...")
         
         download = download_info.value
         
