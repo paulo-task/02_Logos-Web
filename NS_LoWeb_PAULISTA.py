@@ -232,7 +232,7 @@ def run(playwright: Playwright) -> None:
     
     # Realiza o download
     try:
-        with page.expect_download(timeout=60000) as download_info:
+        with page.expect_download(timeout=0) as download_info:
             page.locator("#MainContent_btnExportExcel").click()
         
         download = download_info.value
