@@ -21,6 +21,75 @@ def get_download_path():
         # Ambiente Local
         return r"C:\Users\paulo.janio\ENGELMIG ENERGIA LTDA\LEC ENGELMIG - Workspace\BI_LEC\16_Notas_Servico"
 
+def upload_to_sharepoint(conteudo_bytes, nome_arquivo, pasta_sharepoint):
+    """Envia arquivo para o SharePoint via Microsoft Graph API"""
+    try:
+        import requests
+        from urllib.parse import urlparse
+        
+        SP_CLIENT_ID = os.getenv("SP_CLIENT_ID", "").strip()
+        SP_CLIENT_SECRET = os.getenv("SP_CLIENT_SECRET", "").strip()
+        SP_TENANT_ID = os.getenv("SP_TENANT_ID", "").strip()
+        SITE_URL = "https://engelmigproject.sharepoint.com/sites/LEC_ENGELMIG"
+        
+        if not SP_CLIENT_ID:
+            print("   ⚠️ SharePoint: credenciais não configuradas (verifique as variáveis de ambiente)")
+            return False
+        
+        print("   🔑 Autenticando no SharePoint...")
+        # Obter token
+        url_token = f'https://login.microsoftonline.com/{SP_TENANT_ID}/oauth2/v2.0/token'
+        data = {
+            'grant_type': 'client_credentials',
+            'client_id': SP_CLIENT_ID,
+            'client_secret': SP_CLIENT_SECRET,
+            'scope': 'https://graph.microsoft.com/.default'
+        }
+        r = requests.post(url_token, data=data)
+        r.raise_for_status()
+        token = r.json()['access_token']
+        
+        # Obter Site ID
+        parsed = urlparse(SITE_URL)
+        host = parsed.netloc
+        site_path = parsed.path.strip("/")
+        url_site = f"https://graph.microsoft.com/v1.0/sites/{host}:/{site_path}"
+        headers = {"Authorization": f"Bearer {token}"}
+        r = requests.get(url_site, headers=headers)
+        r.raise_for_status()
+        site_id = r.json()["id"]
+        
+        # Obter Drive Workspace
+        url_drives = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drives"
+        r = requests.get(url_drives, headers={"Authorization": f"Bearer {token}"})
+        r.raise_for_status()
+        
+        drive_id = None
+        for drive in r.json().get('value', []):
+            if drive.get('name') == 'Workspace':
+                drive_id = drive.get('id')
+                break
+        
+        if not drive_id:
+            raise Exception("Pasta raiz (Drive) 'Workspace' não encontrada no SharePoint")
+        
+        # Upload
+        print(f"   ☁️ Enviando '{nome_arquivo}' para '{pasta_sharepoint}'...")
+        url_upload = f"https://graph.microsoft.com/v1.0/sites/{site_id}/drives/{drive_id}/root:/{pasta_sharepoint}/{nome_arquivo}:/content"
+        headers_upload = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/octet-stream"
+        }
+        r = requests.put(url_upload, headers=headers_upload, data=conteudo_bytes)
+        r.raise_for_status()
+        
+        print(f"   ✅ Upload SharePoint concluído com sucesso!")
+        return True
+        
+    except Exception as e:
+        print(f"   ❌ Erro no upload para o SharePoint: {e}")
+        return False
+
 def run(playwright: Playwright) -> None:
     # --- DETECÇÃO DE AMBIENTE ---
     is_github_actions = os.getenv('GITHUB_ACTIONS') == 'true'
@@ -199,6 +268,13 @@ def run(playwright: Playwright) -> None:
         
         # Salva arquivo final
         df.to_excel(caminho_final, index=False)
+        print(f"✓ Arquivo excel local salvo temporariamente")
+        
+        # Faz o envio para o SharePoint
+        with open(caminho_final, "rb") as f:
+            conteudo_bytes = f.read()
+        
+        upload_to_sharepoint(conteudo_bytes, "Nota_Servico_Paulista.xlsx", "BI_LEC/16_Notas_Servico")
         
         # Remove arquivo temporário
         if os.path.exists(caminho_temp):
