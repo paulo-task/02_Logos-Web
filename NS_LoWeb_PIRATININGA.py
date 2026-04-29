@@ -203,7 +203,7 @@ def run(playwright: Playwright) -> None:
     
     try:
         print("Aguardando início do download...")
-        with page.expect_download(timeout=0) as download_info:
+        with page.expect_download(timeout=120000) as download_info:
             page.locator("#MainContent_btnExportExcel").click(force=True)
             print("✓ Clique no botão de exportar realizado, aguardando servidor...")
         
