@@ -3,6 +3,7 @@ import os
 import time
 import pandas as pd
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import warnings
 from playwright.sync_api import Playwright, sync_playwright, expect
 from pathlib import Path
@@ -269,7 +270,7 @@ def run(playwright: Playwright) -> None:
                 df['QTDHORAS'] = df['QTDHORAS'] / 100
 
         # Adiciona data do relatório
-        df['DT_RELATORIO'] = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        df['DT_RELATORIO'] = datetime.now(ZoneInfo('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M:%S')
         
         # Salva arquivo final
         df.to_excel(caminho_final, index=False)

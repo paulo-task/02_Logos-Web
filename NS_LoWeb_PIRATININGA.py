@@ -3,6 +3,7 @@ import os
 import time
 import pandas as pd
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import warnings 
 from playwright.sync_api import Playwright, sync_playwright, expect
 
@@ -237,7 +238,7 @@ def run(playwright: Playwright) -> None:
             if df['QTDHORAS'].abs().max() > 1000:
                 df['QTDHORAS'] = df['QTDHORAS'] / 100
 
-        df['DT_RELATORIO'] = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+        df['DT_RELATORIO'] = datetime.now(ZoneInfo('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M:%S')
         df.to_excel(caminho_final, index=False)
         print(f"✓ Arquivo excel local salvo temporariamente")
         
