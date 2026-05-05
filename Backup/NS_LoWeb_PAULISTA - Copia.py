@@ -245,12 +245,7 @@ def run(playwright: Playwright) -> None:
         
         # Define caminhos baseado no ambiente
         pasta_destino = get_download_path()
-        
-        # Gera nome do arquivo com a data atual
-        data_atual = datetime.now(ZoneInfo('America/Sao_Paulo')).strftime('%Y-%m-%d')
-        nome_arquivo_final = f"Nota_Servico_Paulista_{data_atual}.csv"
-        
-        caminho_final = os.path.join(pasta_destino, nome_arquivo_final)
+        caminho_final = os.path.join(pasta_destino, "Nota_Servico_Paulista.xlsx")
         caminho_temp = os.path.join(pasta_destino, "temp_processamento.xls")
 
         # Salva o download
@@ -278,14 +273,14 @@ def run(playwright: Playwright) -> None:
         df['DT_RELATORIO'] = datetime.now(ZoneInfo('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M:%S')
         
         # Salva arquivo final
-        df.to_csv(caminho_final, index=False, sep=';', encoding='utf-8-sig')
-        print(f"✓ Arquivo CSV local salvo temporariamente")
+        df.to_excel(caminho_final, index=False)
+        print(f"✓ Arquivo excel local salvo temporariamente")
         
         # Faz o envio para o SharePoint
         with open(caminho_final, "rb") as f:
             conteudo_bytes = f.read()
         
-        upload_to_sharepoint(conteudo_bytes, nome_arquivo_final, "BI_LEC/16_Notas_Servico")
+        upload_to_sharepoint(conteudo_bytes, "Nota_Servico_Paulista.xlsx", "BI_LEC/16_Notas_Servico")
         
         # Remove arquivo temporário
         if os.path.exists(caminho_temp):
