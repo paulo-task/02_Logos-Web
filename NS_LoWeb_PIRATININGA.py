@@ -242,6 +242,9 @@ def run(playwright: Playwright) -> None:
             df['QTDHORAS'] = pd.to_numeric(df['QTDHORAS'], errors='coerce')
             if df['QTDHORAS'].abs().max() > 1000:
                 df['QTDHORAS'] = df['QTDHORAS'] / 100
+            
+            # Formata a coluna para usar vírgula como separador decimal
+            df['QTDHORAS'] = df['QTDHORAS'].apply(lambda x: str(x).replace('.', ',') if pd.notnull(x) else x)
 
         df['DT_RELATORIO'] = datetime.now(ZoneInfo('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M:%S')
         df.to_csv(caminho_final, index=False, sep=';', encoding='utf-8-sig')
