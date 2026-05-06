@@ -259,7 +259,7 @@ def run(playwright: Playwright) -> None:
         
         # Tratamento de Dados
         print("Processando dados...")
-        tabelas = pd.read_html(caminho_temp, flavor='lxml')
+        tabelas = pd.read_html(caminho_temp, flavor='lxml', encoding='latin-1')
         df = tabelas[0].copy()
 
         # Ajusta cabeçalho se necessário

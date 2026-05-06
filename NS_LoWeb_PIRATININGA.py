@@ -230,7 +230,7 @@ def run(playwright: Playwright) -> None:
         download.save_as(caminho_temp)
         
         # Tratamento de Dados
-        tabelas = pd.read_html(caminho_temp, flavor='lxml')
+        tabelas = pd.read_html(caminho_temp, flavor='lxml', encoding='latin-1')
         df = tabelas[0].copy()
 
         if "0" in str(df.columns[0]) or df.columns[0] == 0:
