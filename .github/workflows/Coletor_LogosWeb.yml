@@ -34,6 +34,9 @@ jobs:
         run: |
           python -c "import pandas, lxml, openpyxl, playwright; print('Dependências OK')"
 
+      - name: 📅 Definir data dos arquivos
+        run: echo "FILE_DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+
       - name: 🚀 [1/2] Executar NS_LoWeb_PAULISTA
         id: paulista
         continue-on-error: true

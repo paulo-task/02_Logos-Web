@@ -1,14 +1,47 @@
 import re
 import os
+import sys
 import time
 import pandas as pd
 from datetime import datetime
 from zoneinfo import ZoneInfo
-import warnings 
+import warnings
 from playwright.sync_api import Playwright, sync_playwright, expect
+
+# Força UTF-8 no terminal Windows para evitar UnicodeEncodeError com emojis
+if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 # Silencia avisos de forma universal
 warnings.filterwarnings("ignore", message=".*SettingWithCopyWarning.*")
+
+def get_file_date():
+    """Obtém a data do arquivo no formato YYYY_MM_DD."""
+    file_date = os.getenv("FILE_DATE", "").strip()
+    if file_date:
+        normalized = re.sub(r"[^0-9_-]", "", file_date).replace("_", "-")
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", normalized):
+            return normalized
+    return datetime.now(ZoneInfo('America/Sao_Paulo')).strftime('%Y-%m-%d')
+
+def fix_text_encoding(value):
+    """Corrige textos com mojibake (ex.: RECLAMAÃÃO -> RECLAMAÇÃO)."""
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    candidates = [text]
+
+    for source_encoding in ("latin1", "cp1252"):
+        try:
+            candidates.append(text.encode(source_encoding).decode("utf-8"))
+        except Exception:
+            continue
+
+    def score(candidate_text):
+        return sum(candidate_text.count(mark) for mark in ("Ã", "Â", "�"))
+
+    return min(candidates, key=score)
 
 def get_download_path():
     """Define o caminho de download baseado no ambiente"""
@@ -118,20 +151,30 @@ def run(playwright: Playwright) -> None:
         ]
 
     browser = playwright.chromium.launch(**browser_options)
-    context = browser.new_context(
-        viewport={'width': 1280, 'height': 720},
-        user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    )
-    page = context.new_page()
     
     print("--- Iniciando Script Piratininga ---")
+
+    context = None
+    page = None
 
     while tentativa_atual < max_tentativas and not logado:
         tentativa_atual += 1
         print(f"\nTentativa de login {tentativa_atual} de {max_tentativas}...")
         
+        # Recria context e page a cada tentativa para evitar estado inválido
         try:
-            page.goto("https://contratadas.cpfl.com.br/account/login.aspx")
+            if context:
+                context.close()
+        except Exception:
+            pass
+        context = browser.new_context(
+            viewport={'width': 1280, 'height': 720},
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        )
+        page = context.new_page()
+        
+        try:
+            page.goto("https://contratadas.cpfl.com.br/account/login.aspx", timeout=30000)
             
             # Preenchimento de Credenciais
             page.locator("#MainContent_txtLogin").fill("CP14111")
@@ -174,7 +217,7 @@ def run(playwright: Playwright) -> None:
             else:
                 print("❌ Limite de tentativas atingido. Encerrando.")
                 browser.close()
-                return
+                sys.exit(1)  # Sinaliza falha para o .bat
 
     # --- INÍCIO DO PROCESSO DE EXPORTAÇÃO (SÓ EXECUTA SE LOGADO) ---
     print("Iniciando filtragem e exportação...")
@@ -204,7 +247,7 @@ def run(playwright: Playwright) -> None:
     
     try:
         print("Aguardando início do download...")
-        with page.expect_download(timeout=120000) as download_info:
+        with page.expect_download(timeout=300000) as download_info:  # 5 minutos
             page.locator("#MainContent_btnExportExcel").click(force=True)
             print("✓ Clique no botão de exportar realizado, aguardando servidor...")
         
@@ -212,7 +255,9 @@ def run(playwright: Playwright) -> None:
         
         # Define caminhos baseado no ambiente
         pasta_destino = get_download_path()
-        caminho_final = os.path.join(pasta_destino, "Nota_Servico_Piratininga.xlsx")
+        data_arquivo = get_file_date()
+        nome_arquivo = f"Nota_Servico_Piratininga_{data_arquivo}.csv"
+        caminho_final = os.path.join(pasta_destino, nome_arquivo)
         caminho_temp = os.path.join(pasta_destino, "temp_pira.xls")
 
         if os.path.exists(caminho_final):
@@ -237,16 +282,22 @@ def run(playwright: Playwright) -> None:
             df['QTDHORAS'] = pd.to_numeric(df['QTDHORAS'], errors='coerce')
             if df['QTDHORAS'].abs().max() > 1000:
                 df['QTDHORAS'] = df['QTDHORAS'] / 100
+            df['QTDHORAS'] = df['QTDHORAS'].map(
+                lambda v: '' if pd.isna(v) else f"{v:.10f}".rstrip('0').rstrip('.').replace('.', ',')
+            )
+
+        if 'TIPOSERVICO' in df.columns:
+            df['TIPOSERVICO'] = df['TIPOSERVICO'].apply(fix_text_encoding)
 
         df['DT_RELATORIO'] = datetime.now(ZoneInfo('America/Sao_Paulo')).strftime('%d/%m/%Y %H:%M:%S')
-        df.to_excel(caminho_final, index=False)
-        print(f"✓ Arquivo excel local salvo temporariamente")
+        df.to_csv(caminho_final, index=False, sep=';', encoding='utf-8-sig')
+        print(f"✓ Arquivo CSV local salvo temporariamente")
         
         # Faz o envio para o SharePoint
         with open(caminho_final, "rb") as f:
             conteudo_bytes = f.read()
         
-        upload_to_sharepoint(conteudo_bytes, "Nota_Servico_Piratininga.xlsx", "BI_LEC/16_Notas_Servico")
+        upload_to_sharepoint(conteudo_bytes, nome_arquivo, "BI_LEC/16_Notas_Servico")
         
         if os.path.exists(caminho_temp): os.remove(caminho_temp)
         print(f"--- SUCESSO FINAL: Arquivo Piratininga Gerado! ---")

@@ -7,6 +7,10 @@ echo   INICIANDO PROCESSAMENTO DE NOTAS DE SERVICO (NS)
 echo =======================================================
 echo.
 
+for /f %%i in ('powershell -NoProfile -Command "(Get-Date).ToString(\"yyyy-MM-dd\")"') do set "FILE_DATE=%%i"
+echo Data do arquivo: %FILE_DATE%
+echo.
+
 :: 1. Executando o Script de Paulista
 echo [1/2] Rodando Script PAULISTA...
 python "C:\Users\paulo.janio\ENGELMIG ENERGIA LTDA\LEC ENGELMIG - Workspace\03 Repository\02_Logos-Web\NS_LoWeb_PAULISTA.py"
