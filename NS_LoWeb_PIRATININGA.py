@@ -255,8 +255,7 @@ def run(playwright: Playwright) -> None:
         
         # Define caminhos baseado no ambiente
         pasta_destino = get_download_path()
-        data_arquivo = get_file_date()
-        nome_arquivo = f"Nota_Servico_Piratininga_{data_arquivo}.csv"
+        nome_arquivo = "Nota_Servico_Piratininga.csv"
         caminho_final = os.path.join(pasta_destino, nome_arquivo)
         caminho_temp = os.path.join(pasta_destino, "temp_pira.xls")
 
